@@ -1,0 +1,19 @@
+project:
+  type: default
+  output-dir: _site
+
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    embed-resources: false
+    self-contained: false
+    theme: cosmo
+
+execute:
+  echo: true
+  warning: false
+  freeze: auto
+
+jupyter: python3
