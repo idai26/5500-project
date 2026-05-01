@@ -1,0 +1,276 @@
+---
+title: "Application of Pathfinding Algorithims: Dijkstra vs A*"
+subtitle: "Visualizing Optimal Routes on the Washington DC Street Network"
+author: "Isak Dai"
+date: today
+abstract: "This paper examines how mapping services use different algorithms to determine optimal routes and estimate travel time. In particular, I compare Dijkstra’s Algorithm with the A-star algorithm. Dijkstra's algorithm is a breadth-first search algorithm that explores every node in the graph, while A-star uses a heuristic to guide the search, a tradeoff between optimality and speed. I also consider how the choice of costs can impact the results as drivers and pedestrians weight the benfits of optimizing for speed, distance, or incline. I use my commute from home to school as a case study to visualize the results of these algorithms. Finally, I will consider the extension of contraction hierarchies to the shortest-path problem, which major mapping services use to speed up route computation."
+---
+
+## Introduction
+
+Shortest-path problems, an extension of the binary search tree into real-world navigation, are at the core of modern navigation technology. 
+
+[flesh out more!]
+
+
+## Data and graph model
+
+We download a subset of the Washington DC street network from OpenStreetMap (OSM).
+
+This paper compares three edge-cost models:
+
+- `length` (meters, baseline shortest distance)
+- `travel_time_s` (seconds, speed-based travel time using OSM `maxspeed` plus highway-class defaults)
+- `travel_time_grade_s` (seconds, absolute-incline-penalized travel time using OSM `incline` tags where present)
+
+```{python}
+#| label: load-precomputed
+from pathlib import Path
+import pickle
+
+import pandas as pd
+from IPython.display import display
+
+from routing_viz import (
+    build_blended_paths_figure,
+    build_search_animation,
+    comparison_table_row,
+)
+
+RESULTS_PKL = Path("data") / "routing_results.pkl"
+if not RESULTS_PKL.exists():
+    raise FileNotFoundError(
+        f"Missing {RESULTS_PKL}. Run `python precompute.py` once before rendering."
+    )
+
+with RESULTS_PKL.open("rb") as f:
+    bundle = pickle.load(f)
+
+results = bundle["results"]
+node_xy_ll = bundle["node_xy_ll"]
+edge_pairs = bundle["edge_pairs"]
+orig_node = bundle["orig_node"]
+dest_node = bundle["dest_node"]
+graph_stats = bundle["graph_stats"]
+coverage = bundle["coverage"]
+blended = bundle.get("blended")
+
+pd.DataFrame(
+    [
+        {"Point": "origin", "lat": bundle["origin_latlon"][0], "lon": bundle["origin_latlon"][1]},
+        {"Point": "destination", "lat": bundle["dest_latlon"][0], "lon": bundle["dest_latlon"][1]},
+    ]
+)
+```
+
+```{python}
+#| label: graph-stats
+pd.DataFrame(
+    [
+        {"Metric": "Nodes", "Value": graph_stats["nodes"]},
+        {"Metric": "Directed edges (MultiDiGraph keys)", "Value": graph_stats["edges"]},
+        {"Metric": "Edges with maxspeed tag", "Value": coverage["edge_has_maxspeed"]},
+        {
+            "Metric": "Edges with maxspeed tag (%)",
+            "Value": round(100 * coverage["edge_has_maxspeed"] / max(coverage["edge_total"], 1), 2),
+        },
+        {"Metric": "Edges with incline tag", "Value": coverage["edge_has_incline"]},
+        {
+            "Metric": "Edges with incline tag (%)",
+            "Value": round(100 * coverage["edge_has_incline"] / max(coverage["edge_total"], 1), 2),
+        },
+    ]
+)
+```
+
+## Methods
+
+### Dijkstra's algorithm
+
+Dijkstra's algorithm starts at the source node and iteratively explores the graph, storing the shortest path to each node. It continues exploring every unexplored node in the graph, storing the shortest path to each node, until the goal node is reached. From there, it backtracks to construct the shortest path to the source node. 
+
+### A*
+
+A* creates a priority queue by ordering nodesby `f(n) = g(n) + h(n)`, where `h(n)` is a heuristic estimate of the remaining cost to the goal.
+
+- For the `length` model, we use Euclidean distance in projected meters.
+- For the time-based models, we use a lower-bound travel-time heuristic: straight-line distance divided by the maximum edge speed in the graph.
+
+### Additional cost models
+
+- **Speed model**: `travel_time_s = length_m / speed_mps` using `maxspeed` when available and fallback defaults by `highway` class.
+- **Grade-penalized model**: `travel_time_grade_s = travel_time_s * (1 + gamma * abs(incline_pct))`, so both steep uphill and steep downhill segments receive extra penalty.
+
+## Results
+
+```{python}
+#| label: comparison-table
+#| tbl-cap: "Algorithm comparison on the same graph and endpoints"
+
+rows = []
+for model_name, model_res in results.items():
+    units = "m" if model_name == "distance" else "s"
+    rows.append(
+        {
+            **comparison_table_row(
+                "Dijkstra",
+                model_res["dijkstra"].cost,
+                model_res["dijkstra"].nodes_expanded,
+                model_res["dijkstra"].pq_pops,
+                model_res["dijkstra"].elapsed_s * 1000,
+            ),
+            "Model": model_name,
+            "Cost units": units,
+        }
+    )
+    rows.append(
+        {
+            **comparison_table_row(
+                "A*",
+                model_res["astar"].cost,
+                model_res["astar"].nodes_expanded,
+                model_res["astar"].pq_pops,
+                model_res["astar"].elapsed_s * 1000,
+            ),
+            "Model": model_name,
+            "Cost units": units,
+        }
+    )
+
+pd.DataFrame(rows)
+```
+
+For `distance`, cost is **meters**; for `time` and `time+grade`, cost is **seconds**. **Nodes expanded** counts settled nodes; **PQ pops** counts heap pop operations (including stale entries). As expected, A* tends to expand fewer nodes than Dijkstra with an admissible, informative heuristic.
+
+```{python}
+#| label: anim-helpers
+MAX_FRAMES = 30
+
+
+def animation_for(algo: str, model: str, title: str):
+    res = results[model][algo]
+    return build_search_animation(
+        res.frames,
+        node_xy_ll,
+        edge_pairs,
+        res.path,
+        orig_node,
+        dest_node,
+        map_title=title,
+        max_frames=MAX_FRAMES,
+    )
+```
+
+### Interactive map: Dijkstra (distance baseline)
+
+```{python}
+#| label: fig-dijkstra-distance
+#| fig-cap: "Dijkstra exploration (use Play / slider). Orange ~ frontier, gray ~ visited, blue ~ current best path from start, green ~ final shortest path on last frame."
+animation_for("dijkstra", "distance", "Dijkstra (distance) on DC OSM drive network")
+```
+
+### Interactive map: Dijkstra (speed-based time)
+
+```{python}
+#| label: fig-dijkstra-time
+#| fig-cap: "Dijkstra exploration on speed-based travel-time weights."
+animation_for("dijkstra", "time", "Dijkstra (travel_time_s) on DC OSM drive network")
+```
+
+### Interactive map: Dijkstra (time + absolute incline penalty)
+
+```{python}
+#| label: fig-dijkstra-grade
+#| fig-cap: "Dijkstra exploration with absolute-incline-penalized travel time."
+animation_for("dijkstra", "time+grade", "Dijkstra (travel_time_grade_s) on DC OSM drive network")
+```
+
+### Interactive map: A* (distance baseline)
+
+```{python}
+#| label: fig-astar-distance
+#| fig-cap: "A* exploration with Euclidean heuristic for distance."
+animation_for("astar", "distance", "A* (distance) on DC OSM drive network")
+```
+
+### Interactive map: A* (speed-based time)
+
+```{python}
+#| label: fig-astar-time
+#| fig-cap: "A* exploration with travel-time heuristic."
+animation_for("astar", "time", "A* (travel_time_s) on DC OSM drive network")
+```
+
+### Interactive map: A* (time + absolute incline penalty)
+
+```{python}
+#| label: fig-astar-grade
+#| fig-cap: "A* exploration with absolute-incline-penalized travel time."
+animation_for("astar", "time+grade", "A* (travel_time_grade_s) on DC OSM drive network")
+```
+
+## Interactive cost mix
+
+This static explorer precomputes shortest paths under a grid of weight combinations.
+Each edge metric (`length`, `travel_time_s`, and absolute `incline`) is normalized
+to `[0, 1]`, then combined as:
+
+`composite_cost = w_distance * length_norm + w_time * time_norm + w_incline * incline_norm`.
+
+Use the dropdown to emphasize the metric you want to avoid most.
+
+```{python}
+#| label: fig-interactive-cost-mix
+#| fig-cap: "Dijkstra shortest path for normalized blended costs. Use the dropdown to shift priorities across distance, time, and incline."
+if blended is None:
+    import plotly.graph_objects as go
+
+    fig = go.Figure()
+    fig.update_layout(
+        title=(
+            "Custom cost mix unavailable. Run `python precompute.py` in your project "
+            "environment to regenerate data/routing_results.pkl with blended outputs."
+        ),
+        margin={"l": 20, "r": 20, "t": 80, "b": 20},
+        height=220,
+    )
+    display(fig)
+else:
+    fig = build_blended_paths_figure(
+        node_xy_ll,
+        edge_pairs,
+        blended["weights"],
+        blended["paths"],
+        blended["stats"],
+        orig_node,
+        dest_node,
+        map_title="Custom cost mix (Dijkstra)",
+    )
+    display(fig)
+```
+
+```{python}
+#| label: tbl-interactive-cost-mix
+#| tbl-cap: "Path-level metrics across blended cost combinations"
+pd.DataFrame([] if blended is None else blended["stats"])
+```
+
+## Discussion
+
+### Contraction Hierarchies
+
+## Conclusion
+
+## Appendix: environment
+
+Install dependencies, precompute results, and render:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python precompute.py        # one-time; pulls OSM and runs all algorithms
+quarto render index.qmd     # fast: just loads pickle + draws figures
+```
+
+The first `precompute.py` run needs **network access** for OSM download. After that, both precompute and render work fully offline using the cached `data/dc_route_graph.graphml` and `data/routing_results.pkl`.
