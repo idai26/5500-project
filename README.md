@@ -28,7 +28,7 @@ python precompute.py        # one-time; writes data/routing_results.pkl
 quarto render index.qmd     # fast: loads pickle, builds figures
 ```
 
-Open `_site/index.html`. Re-run `python precompute.py` whenever cost model parameters or endpoints change. Use `python precompute.py --refresh` to force a fresh OSM download.
+Open `docs/index.html`. Re-run `python precompute.py` whenever cost model parameters or endpoints change. Use `python precompute.py --refresh` to force a fresh OSM download.
 
 ## Files
 
