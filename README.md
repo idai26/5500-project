@@ -1,6 +1,6 @@
 # DC street pathfinding (Quarto)
 
-Quarto manuscript comparing Dijkstra and A* on an OpenStreetMap drive network between **1315 Clifton St NW** and the **37th St NW & O St NW intersection**.
+Quarto manuscript comparing Dijkstra and A* on an OpenStreetMap drive network.
 
 Cost models included:
 
@@ -17,11 +17,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Install [Quarto](https://quarto.org/docs/get-started/) if it is not already available (`quarto --version`).
+
 
 ## Workflow
 
-Heavy work (OSM download, projection, snapping, cost-model derivation, and Dijkstra/A* runs) lives in [`precompute.py`](precompute.py). Quarto only loads the resulting pickle and draws figures, so renders are fast and avoid Box.com / Jupyter freezes.
+Heavy work (OSM download, projection, snapping, cost-model derivation, and Dijkstra/A* runs) lives in [`precompute.py`](precompute.py). \
 
 ```bash
 python precompute.py        # one-time; writes data/routing_results.pkl
