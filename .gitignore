@@ -1,5 +1,4 @@
 /.quarto/
-/docs/
 /_freeze/
 __pycache__/
 *.py[cod]
