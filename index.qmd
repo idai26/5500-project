@@ -1,8 +1,14 @@
 ---
-title: "Application of Pathfinding Algorithims: Dijkstra vs A*"
+title: "Application of Pathfinding Algorithms: Dijkstra vs A*"
 subtitle: "Visualizing Optimal Routes on the Washington DC Street Network"
 author: "Isak Dai"
 date: today
+keywords:
+  - shortest path
+  - Dijkstra
+  - A*
+  - OpenStreetMap
+  - transportation networks
 abstract: "This paper examines how mapping services use different algorithms to determine optimal routes and estimate travel time. In particular, I compare Dijkstra’s Algorithm with the A-star algorithm. Dijkstra's algorithm is a breadth-first search algorithm that explores every node in the graph, while A-star uses a heuristic to guide the search, a tradeoff between optimality and speed. I also consider how the choice of costs can impact the results as drivers and pedestrians weight the benfits of optimizing for speed, distance, or incline. I use my commute from home to school as a case study to visualize the results of these algorithms. Finally, I will consider the extension of contraction hierarchies to the shortest-path problem, which major mapping services use to speed up route computation."
 ---
 

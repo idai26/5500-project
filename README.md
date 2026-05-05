@@ -1,4 +1,4 @@
-# DC street pathfinding (Quarto)
+# DC street pathfinding (Quarto manuscript)
 
 Quarto manuscript comparing Dijkstra and A* on an OpenStreetMap drive network.
 
@@ -11,7 +11,6 @@ Cost models included:
 ## Setup
 
 ```bash
-cd final
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -25,14 +24,14 @@ Heavy work (OSM download, projection, snapping, cost-model derivation, and Dijks
 
 ```bash
 python precompute.py        # one-time; writes data/routing_results.pkl
-quarto render index.qmd     # fast: loads pickle, builds figures
+quarto render               # builds the manuscript site
 ```
 
-Open `docs/index.html`. Re-run `python precompute.py` whenever cost model parameters or endpoints change. Use `python precompute.py --refresh` to force a fresh OSM download.
+Open `docs/index.html`. Use `quarto preview` for a live manuscript preview while editing. Re-run `python precompute.py` whenever cost model parameters or endpoints change. Use `python precompute.py --refresh` to force a fresh OSM download.
 
 ## Files
 
 - [`index.qmd`](index.qmd) — manuscript and executable analysis
 - [`algorithms.py`](algorithms.py) — Dijkstra / A* with exploration traces
 - [`routing_viz.py`](routing_viz.py) — Plotly map animations
-- [`_quarto.yml`](_quarto.yml) — project defaults
+- [`_quarto.yml`](_quarto.yml) — manuscript project defaults and output formats

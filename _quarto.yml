@@ -1,6 +1,18 @@
 project:
-  type: default
+  type: manuscript
   output-dir: docs
+
+manuscript:
+  code-links:
+    - text: Precompute pipeline
+      icon: file-code
+      href: precompute.py
+    - text: Pathfinding algorithms
+      icon: file-code
+      href: algorithms.py
+    - text: Visualization helpers
+      icon: file-code
+      href: routing_viz.py
 
 format:
   html:
