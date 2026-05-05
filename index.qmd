@@ -3,25 +3,29 @@ title: "Application of Pathfinding Algorithms: Dijkstra vs A*"
 subtitle: "Visualizing Optimal Routes on the Washington DC Street Network"
 author: "Isak Dai"
 date: today
+bibliography: references.bib
+reference-section-title: References
 keywords:
   - shortest path
   - Dijkstra
   - A*
   - OpenStreetMap
   - transportation networks
-abstract: "This paper examines how mapping services use different algorithms to determine optimal routes and estimate travel time. In particular, I compare Dijkstra’s Algorithm with the A-star algorithm. Dijkstra's algorithm is a breadth-first search algorithm that explores every node in the graph, while A-star uses a heuristic to guide the search, a tradeoff between optimality and speed. I also consider how the choice of costs can impact the results as drivers and pedestrians weight the benfits of optimizing for speed, distance, or incline. I use my commute from home to school as a case study to visualize the results of these algorithms. Finally, I will consider the extension of contraction hierarchies to the shortest-path problem, which major mapping services use to speed up route computation."
+abstract: "This paper examines how mapping services use different algorithms to determine optimal routes and estimate travel time. In particular, I compare Dijkstra’s Algorithm with the A-star algorithm. Dijkstra's algorithm is a breadth-first search algorithm that explores every node in the graph, while A-star uses a heuristic to guide the search, a tradeoff between optimality and speed. I also consider how the choice of costs can impact the results as drivers and pedestrians weight the benefits of optimizing for speed, distance, or incline. I use my commute from home to school as a case study to visualize the results of these algorithms. Finally, I will consider the extension of contraction hierarchies to the shortest-path problem, which major mapping services use to speed up route computation."
 ---
 
 ## Introduction
+The origin of shortest-path problems on graphs begins in the 1950s with the work of Edsger Dijkstra [@dijkstra1959note], who was one of the first to formulate a formal algorithm for finding the shortest path on a graph. Dijkstra originally developed the algorithm as a toy problem to demonstrate the power of a new computing center in Amsterdam, and used it to find the shortest paths on a pared-down Dutch road network. In 1959, he published the algorithm in a paper intended to minimize the amount of copper wire used in computing chips, but his algorithm now forms the theoretical underpinning for most modern mapping services.
 
-Shortest-path problems, an extension of the binary search tree into real-world navigation, are at the core of modern navigation technology. 
+Dijkstra's breadth-first search algorithm is guaranteed to find the shortest path on a graph, but later researchers began to explore ways to speed up the algorithm and avoid the costly exploration of every node in the graph. Peter Hart, Nils Nilsson, and Bertram Raphael [@hart1968formal] developed the A* algorithm, which uses a so-called hueristic to guide the search. In general terms, A* prioritizes which nodes to explore by minimizing the estimated total cost of the path to the goal node. As a result, it takes less time and memory to find a path to the goal node but sacrifices the guarantee of finding the shortest path.
 
-[flesh out more!]
+When it comes to mapping services, there are many choices for how to define the cost of a path. The most simple choice is to use the distance of the path by summing the lengths of the edges in the path from source to goal node. However, in the real world, the fastest route is not always the shortest route. Different roads have different speed limits, some may be unpaved or steep, and some may suffer from traffic congestion. Additionally, there are varied modes of transportation that force different considerations when pathfinding. For example, pedestrians are unlikely to prefer walking on a highway or up a steep hill, even if the physical distance of that path is shorter. Bikers or wheelchair users may also want to avoid steep hills, unpaved roads, or stairs. 
 
+This paper will explore the theoretical underpinnings of the Dijkstra and A* algorithms and implement them in Python on the real-world example of my commute from home to school in Washington, DC. I will demonstrate how different cost models can create different optimal paths. Finally, I will consider the extension of contraction hierarchies to the shortest-path problem, which major mapping services use to speed up route computation.
 
 ## Data and graph model
 
-We download a subset of the Washington DC street network from OpenStreetMap (OSM).
+We download a subset of the Washington DC street network from OpenStreetMap [@openstreetmap]. OSM data contains a trove of information about the road network, including lengths, speeds, inclines, and other features, providing a wealth of differnt options for cost models.
 
 This paper compares three edge-cost models:
 
@@ -93,11 +97,11 @@ pd.DataFrame(
 
 ### Dijkstra's algorithm
 
-Dijkstra's algorithm starts at the source node and iteratively explores the graph, storing the shortest path to each node. It continues exploring every unexplored node in the graph, storing the shortest path to each node, until the goal node is reached. From there, it backtracks to construct the shortest path to the source node. 
+Dijkstra's algorithm starts at the source node and iteratively explores the graph, storing the shortest path to each node [@dijkstra1959note]. It continues exploring every unexplored node in the graph, storing the shortest path to each node, until the goal node is reached. From there, it backtracks to construct the shortest path to the source node. 
 
 ### A*
 
-A* creates a priority queue by ordering nodesby `f(n) = g(n) + h(n)`, where `h(n)` is a heuristic estimate of the remaining cost to the goal.
+A* orders nodes by `f(n) = g(n) + h(n)`, where `h(n)` is a heuristic estimate of the remaining cost to the goal [@hart1968formal].
 
 - For the `length` model, we use Euclidean distance in projected meters.
 - For the time-based models, we use a lower-bound travel-time heuristic: straight-line distance divided by the maximum edge speed in the graph.
@@ -265,6 +269,8 @@ pd.DataFrame([] if blended is None else blended["stats"])
 
 ### Contraction Hierarchies
 
+Contraction hierarchies preprocess the graph so that bidirectional search on a much smaller search space still yields exact shortest paths on road networks [@geisberger2008contraction].
+
 ## Conclusion
 
 ## Appendix: environment
@@ -276,7 +282,7 @@ python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python precompute.py        # one-time; pulls OSM and runs all algorithms
-quarto render index.qmd     # fast: just loads pickle + draws figures
+quarto render               # manuscript site → docs/index.html
 ```
 
 The first `precompute.py` run needs **network access** for OSM download. After that, both precompute and render work fully offline using the cached `data/dc_route_graph.graphml` and `data/routing_results.pkl`.

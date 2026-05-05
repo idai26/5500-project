@@ -3,6 +3,8 @@ project:
   output-dir: docs
 
 manuscript:
+  resources:
+    - references.bib
   code-links:
     - text: Precompute pipeline
       icon: file-code

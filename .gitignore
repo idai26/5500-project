@@ -1,1 +1,10 @@
 /.quarto/
+/docs/
+/_freeze/
+__pycache__/
+*.py[cod]
+.DS_Store
+/.venv/
+/index.html
+/index-preview.html
+*.quarto_ipynb
