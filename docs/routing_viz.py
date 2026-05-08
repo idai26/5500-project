@@ -146,7 +146,7 @@ def build_search_animation(
     map_title: str = "Search progress",
     max_frames: int = 55,
 ) -> go.Figure:
-    """Six consistent Scattermapbox traces: streets, visited, frontier, path, endpoints, current."""
+    """Six consistent Scattermapbox traces: streets, settled, frontier, path, endpoints, current."""
     if len(frames_data) > max_frames:
         idx = np.linspace(0, len(frames_data) - 1, max_frames, dtype=int)
         frames_data = [frames_data[i] for i in idx]
@@ -155,7 +155,7 @@ def build_search_animation(
     streets = _trace_streets(ex, ey)
 
     def build_traces(fr: dict[str, Any], frame_index: int, last: bool) -> list[Any]:
-        visited = fr.get("visited", set())
+        settled = fr.get("settled", set())
         frontier = fr.get("frontier", set())
         current = fr.get("current")
         preview = fr.get("path_preview", [])
@@ -164,7 +164,7 @@ def build_search_animation(
         path_width = 6 if (last and path_final) else 4
         return [
             streets,
-            _trace_nodes(node_xy_ll, visited, color="#64748b", size=5, name="Visited"),
+            _trace_nodes(node_xy_ll, settled, color="#64748b", size=5, name="Settled"),
             _trace_nodes(node_xy_ll, frontier, color="#f59e0b", size=7, name="Frontier"),
             _trace_path(
                 node_xy_ll,
@@ -255,14 +255,14 @@ def build_search_animation(
 def comparison_table_row(
     label: str,
     cost_m: float,
-    nodes_expanded: int,
+    nodes_settled: int,
     pq_pops: int,
     elapsed_ms: float,
 ) -> dict[str, Any]:
     return {
         "Algorithm": label,
         "Path length (m)": round(cost_m, 2),
-        "Nodes expanded": nodes_expanded,
+        "Nodes settled": nodes_settled,
         "PQ pops": pq_pops,
         "Time (ms)": round(elapsed_ms, 3),
     }

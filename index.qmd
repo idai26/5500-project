@@ -101,6 +101,8 @@ Dijkstra's algorithm starts out by assigning a distance of 0 to the source node 
 
 The use of the priority queue makes Dijkstra's algorithm a "best-first" search algorithm, but one that is guaranteed to find the shortest path. This is because it has the crucial invariant that the distance to any settled node is the shortest path to that node. Once the target node $t$ is settled, it is thus guaranteed to be the shortest path to the source node $s$.
 
+The method for calculating the total cost of the most efficient path is similar in form to a linked list. Each node remembers its predecessor node on the path with a pointer and stores the cost to get to that node. Starting from the target node $t$, it backtracks to the source node $s$ by following the predecessor pointers to construct the shortest path and its total cost.
+
 ### A*
 
 A* is an extension of Dijkstra's algorithm that orders the priority queue not by simple edge weight but by using a heuristic $f(n) = g(n) + h(n)$, where $g(n)$ is the distance from the source node to the node $n$ and $h(n)$ is a heuristic estimate of the remaining cost to the goal [@hart1968formal]. Depending on the context, this heuristic can be Euclidean distance, Manhattan distance, or any other heuristic that is guaranteed to be less than or equal to the actual remaining cost to the goal. This requirement is called admissibility. Intuitively, it makes sense that the heuristic must be "optimistic" about the remaining cost to the goal, otherwise the algorithm might prioritize nodes that are further away from the goal node and explore a suboptimal path. 
@@ -131,7 +133,7 @@ for model_name, model_res in results.items():
             **comparison_table_row(
                 "Dijkstra",
                 model_res["dijkstra"].cost,
-                model_res["dijkstra"].nodes_expanded,
+                model_res["dijkstra"].nodes_settled,
                 model_res["dijkstra"].pq_pops,
                 model_res["dijkstra"].elapsed_s * 1000,
             ),
@@ -144,7 +146,7 @@ for model_name, model_res in results.items():
             **comparison_table_row(
                 "A*",
                 model_res["astar"].cost,
-                model_res["astar"].nodes_expanded,
+                model_res["astar"].nodes_settled,
                 model_res["astar"].pq_pops,
                 model_res["astar"].elapsed_s * 1000,
             ),
@@ -156,7 +158,7 @@ for model_name, model_res in results.items():
 pd.DataFrame(rows)
 ```
 
-For `distance`, cost is **meters**; for `time` and `time+grade`, cost is **seconds**. **Nodes expanded** counts settled nodes (i.e., nodes for which the shortest path from my house has been found); **PQ pops** counts heap pop operations (including stale entries). As expected, A* tends to expand fewer nodes than Dijkstra with an admissible, informative heuristic.
+For `distance`, cost is **meters**; for `time` and `time+grade`, cost is **seconds**. **Nodes settled** counts the nodes for which the shortest path from my house has been found; **PQ pops** counts heap pop operations (including stale entries). As expected, A* tends to settle fewer nodes than Dijkstra with an admissible, informative heuristic.
 
 ```{python}
 #| label: anim-helpers
@@ -181,7 +183,7 @@ def animation_for(algo: str, model: str, title: str):
 
 ```{python}
 #| label: fig-dijkstra-distance
-#| fig-cap: "Dijkstra exploration (use Play / slider). Orange ~ frontier, gray ~ visited, blue ~ current best path from start, green ~ final shortest path on last frame."
+#| fig-cap: "Dijkstra exploration (use Play / slider). Orange ~ frontier, gray ~ settled, blue ~ current best path from source, green ~ final shortest path on last frame."
 animation_for("dijkstra", "distance", "Dijkstra (distance) on DC OSM drive network")
 ```
 
@@ -236,7 +238,7 @@ to `[0, 1]`, then combined as:
 
 `composite_cost = w_distance * length_norm + w_time * time_norm + w_incline * incline_norm`.
 
-Use the dropdown to emphasize the metric you want to avoid most.
+Use the dropdown to emphasize the metric you want to weight most.
 
 ```{python}
 #| label: fig-interactive-cost-mix
@@ -274,11 +276,11 @@ else:
 pd.DataFrame([] if blended is None else blended["stats"])
 ```
 
-## Discussion
+## Extenstion: Contraction Hierarchies
 
-### Contraction Hierarchies
+Contraction hierarchies preprocess the graph so that bidirectional search on a much larger search space still yields exact shortest paths on road networks [@geisberger2008contraction]. Nodes can be merged together to create a smaller graph that is still guaranteed to contain the shortest path to the goal node while requiring fewer nodes to be relaxed. For instance, if I want to calculate the path between Georgetown University and Johns Hopkins University, it would be imprudent to explore all the side streets between Washington, DC and Baltimore. Instead, I could precalculate a super node representing the cost of all of I-95 between DC and Baltimore. With a heuristic estimating the remaining distance to the goal node, once I reach this node it will shoot me far downstream to Baltimore. 
 
-Contraction hierarchies preprocess the graph so that bidirectional search on a much smaller search space still yields exact shortest paths on road networks [@geisberger2008contraction].
+Mapping services use contraction hierarchies to make route computation over large distances near-instantaneous. Since roads have a hierarchical structures, it is possible to simplify the graph
 
 ## Conclusion
 
