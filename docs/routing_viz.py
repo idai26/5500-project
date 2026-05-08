@@ -268,27 +268,40 @@ def comparison_table_row(
     }
 
 
-def _weight_label(weights: tuple[float, float, float]) -> str:
-    wd, wt, wi = weights
-    return f"dist {wd:.2f} / time {wt:.2f} / incline {wi:.2f}"
+def _weight_label(weights: tuple[float, float]) -> str:
+    wd, wt = weights
+    return f"dist {wd:.2f} / time {wt:.2f}"
 
 
 def _blended_annotation(stat: dict[str, Any]) -> str:
-    incline_extra = float(
-        stat.get("incline_extra_s", stat.get("uphill_extra_s", 0.0))
-    )
     return (
         f"length={float(stat.get('length_m', 0.0)):.1f} m<br>"
         f"time={float(stat.get('travel_time_s', 0.0)):.1f} s<br>"
-        f"incline_extra={incline_extra:.1f} s<br>"
         f"nodes={int(stat.get('path_nodes', 0))}"
+    )
+
+
+def _annotation_box(text: str) -> dict[str, Any]:
+    return dict(
+        x=0.01,
+        y=0.99,
+        xref="paper",
+        yref="paper",
+        xanchor="left",
+        yanchor="top",
+        align="left",
+        showarrow=False,
+        bgcolor="rgba(255,255,255,0.8)",
+        bordercolor="rgba(0,0,0,0.2)",
+        borderwidth=1,
+        text=text,
     )
 
 
 def build_blended_paths_figure(
     node_xy_ll: dict[Node, tuple[float, float]],
     edge_pairs: list[tuple[Node, Node]],
-    weights: list[tuple[float, float, float]],
+    weights: list[tuple[float, float]],
     paths: list[list[Node]],
     stats: list[dict[str, Any]],
     start: Node,
@@ -296,7 +309,12 @@ def build_blended_paths_figure(
     *,
     map_title: str = "Custom cost mix (Dijkstra)",
 ) -> go.Figure:
-    """Render precomputed shortest paths with a dropdown over weight combinations."""
+    """Render precomputed shortest paths with a slider over the distance weight.
+
+    ``weights`` is a list of ``(w_distance, w_time)`` pairs with ``w_time =
+    1 - w_distance``. Each step on the slider swaps in the path computed
+    for that weighting.
+    """
     if not paths:
         raise ValueError("Expected at least one blended path.")
     if not (len(weights) == len(paths) == len(stats)):
@@ -325,68 +343,40 @@ def build_blended_paths_figure(
     first_label = _weight_label(weights[0])
     fig.update_layout(
         title={"text": f"{map_title} - {first_label}", "x": 0.5},
-        annotations=[
-            dict(
-                x=0.01,
-                y=0.99,
-                xref="paper",
-                yref="paper",
-                xanchor="left",
-                yanchor="top",
-                align="left",
-                showarrow=False,
-                bgcolor="rgba(255,255,255,0.8)",
-                bordercolor="rgba(0,0,0,0.2)",
-                borderwidth=1,
-                text=_blended_annotation(stats[0]),
-            )
-        ],
+        annotations=[_annotation_box(_blended_annotation(stats[0]))],
     )
 
-    buttons: list[dict[str, Any]] = []
     n = len(paths)
+    steps: list[dict[str, Any]] = []
     for i in range(n):
         visible = [True, True] + [k == i for k in range(n)]
         label = _weight_label(weights[i])
-        buttons.append(
+        steps.append(
             dict(
-                label=label,
                 method="update",
+                label=f"{weights[i][0]:.2f}",
                 args=[
                     {"visible": visible},
                     {
                         "title": {"text": f"{map_title} - {label}", "x": 0.5},
-                        "annotations": [
-                            dict(
-                                x=0.01,
-                                y=0.99,
-                                xref="paper",
-                                yref="paper",
-                                xanchor="left",
-                                yanchor="top",
-                                align="left",
-                                showarrow=False,
-                                bgcolor="rgba(255,255,255,0.8)",
-                                bordercolor="rgba(0,0,0,0.2)",
-                                borderwidth=1,
-                                text=_blended_annotation(stats[i]),
-                            )
-                        ],
+                        "annotations": [_annotation_box(_blended_annotation(stats[i]))],
                     },
                 ],
             )
         )
 
     fig.update_layout(
-        updatemenus=[
+        sliders=[
             dict(
-                type="dropdown",
-                x=0.01,
-                y=1.08,
+                active=0,
+                steps=steps,
+                x=0.08,
+                len=0.84,
                 xanchor="left",
+                y=0,
                 yanchor="top",
-                showactive=True,
-                buttons=buttons,
+                pad=dict(b=10, t=40),
+                currentvalue=dict(prefix="w_distance: "),
             )
         ]
     )

@@ -49,8 +49,7 @@ def _min_edge_weight(
     ``weight`` selects which precomputed edge attribute defines "cost":
 
     - ``"length"`` for the raw distance baseline (meters),
-    - ``"travel_time_s"`` for the speed-based travel-time model (seconds),
-    - ``"travel_time_grade_s"`` for the absolute-incline-penalized model.
+    - ``"travel_time_s"`` for the speed-based travel-time model (seconds).
 
     Returns ``None`` when ``v`` is not a successor of ``u`` or when no edge
     between them carries the requested weight attribute.
@@ -134,11 +133,10 @@ def _euclidean_heuristic(
     Coordinates must be supplied in a projected CRS (meters) so that
     ``math.hypot`` is comparable to the ``length`` edge weights. 
 
-    For the time-based cost models (``travel_time_s`` and
-    ``travel_time_grade_s``) a different lower-bound heuristic is appropriate
-    -- straight-line distance divided by the maximum edge speed in the graph
-    -- and is supplied via ``astar``'s explicit ``heuristic_fn`` argument
-    rather than constructed here.
+    For the time-based cost model (``travel_time_s``) a different lower-bound
+    heuristic is appropriate -- straight-line distance divided by the
+    maximum edge speed in the graph -- and is supplied via ``astar``'s
+    explicit ``heuristic_fn`` argument rather than constructed here.
     """
     gx, gy = xy[goal]
 

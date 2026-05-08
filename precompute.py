@@ -38,7 +38,6 @@ ORIGIN_LATLON = (38.9229, -77.0288)
 DEST_LATLON = (38.9075, -77.0731)
 BUFFER = 0.018
 
-GAMMA_GRADE = 0.02
 SNAPSHOT_EVERY = 100
 MAX_EDGE_PAIRS = 8_000
 WEIGHT_LEVELS = 6
@@ -87,21 +86,6 @@ def parse_speed_mps(raw: Any, highway: Any) -> float:
     return DEFAULT_SPEED_KPH.get(h, 30.0) / 3.6
 
 
-def parse_incline_pct(raw: Any) -> float:
-    v = _first_tag_value(raw)
-    if v is None:
-        return 0.0
-    s = str(v).lower().strip()
-    if s in {"up", "uphill"}:
-        return 5.0
-    if s in {"down", "downhill"}:
-        return -5.0
-    m = re.search(r"-?\d+(?:\.\d+)?", s)
-    if m:
-        return float(m.group(0))
-    return 0.0
-
-
 def load_or_download_graph(refresh: bool) -> nx.MultiDiGraph:
     if CACHE_GRAPH.exists() and not refresh:
         return ox.load_graphml(CACHE_GRAPH)
@@ -119,27 +103,19 @@ def load_or_download_graph(refresh: bool) -> nx.MultiDiGraph:
 
 
 def annotate_cost_models(G: nx.MultiDiGraph) -> dict[str, int]:
-    edge_total = edge_has_maxspeed = edge_has_incline = 0
+    edge_total = edge_has_maxspeed = 0
     for _u, _v, _k, data in G.edges(keys=True, data=True):
         edge_total += 1
         length_m = float(data.get("length", 0.0))
         speed_mps = parse_speed_mps(data.get("maxspeed"), data.get("highway"))
         if data.get("maxspeed") is not None:
             edge_has_maxspeed += 1
-        incline_pct = parse_incline_pct(data.get("incline"))
-        if data.get("incline") is not None:
-            edge_has_incline += 1
         travel_time_s = length_m / max(speed_mps, 0.1)
-        abs_incline_pct = abs(incline_pct)
-        travel_time_grade_s = travel_time_s * (1.0 + GAMMA_GRADE * abs_incline_pct)
         data["speed_mps"] = speed_mps
-        data["incline_pct"] = incline_pct
         data["travel_time_s"] = travel_time_s
-        data["travel_time_grade_s"] = travel_time_grade_s
     return {
         "edge_total": edge_total,
         "edge_has_maxspeed": edge_has_maxspeed,
-        "edge_has_incline": edge_has_incline,
     }
 
 
@@ -152,50 +128,37 @@ def _normalize(value: float, vmin: float, vmax: float) -> float:
 def normalize_edge_metrics(G: nx.MultiDiGraph) -> dict[str, float]:
     length_vals: list[float] = []
     time_vals: list[float] = []
-    incline_vals: list[float] = []
     for _u, _v, _k, data in G.edges(keys=True, data=True):
         length_vals.append(float(data.get("length", 0.0)))
         time_vals.append(float(data.get("travel_time_s", 0.0)))
-        incline_vals.append(abs(float(data.get("incline_pct", 0.0))))
 
     length_min, length_max = min(length_vals), max(length_vals)
     time_min, time_max = min(time_vals), max(time_vals)
-    incline_min, incline_max = min(incline_vals), max(incline_vals)
 
     for _u, _v, _k, data in G.edges(keys=True, data=True):
         length_m = float(data.get("length", 0.0))
         travel_time_s = float(data.get("travel_time_s", 0.0))
-        abs_incline_pct = abs(float(data.get("incline_pct", 0.0)))
         data["length_norm"] = _normalize(length_m, length_min, length_max)
         data["time_norm"] = _normalize(travel_time_s, time_min, time_max)
-        data["incline_norm"] = _normalize(abs_incline_pct, incline_min, incline_max)
 
     return {
         "length_min": length_min,
         "length_max": length_max,
         "time_min": time_min,
         "time_max": time_max,
-        "incline_min": incline_min,
-        "incline_max": incline_max,
     }
 
 
-def simplex_weights(levels: int) -> list[tuple[float, float, float]]:
+def distance_time_sweep(levels: int) -> list[tuple[float, float]]:
     den = levels - 1
-    combos: list[tuple[float, float, float]] = []
-    for i in range(levels):
-        for j in range(levels - i):
-            k = den - i - j
-            combos.append((i / den, j / den, k / den))
-    return combos
+    return [(i / den, 1.0 - i / den) for i in range(levels)]
 
 
-def _set_composite_costs(G: nx.MultiDiGraph, wd: float, wt: float, wi: float) -> None:
+def _set_composite_costs(G: nx.MultiDiGraph, wd: float, wt: float) -> None:
     for _u, _v, _k, data in G.edges(keys=True, data=True):
         data["composite_cost"] = (
             wd * float(data.get("length_norm", 0.0))
             + wt * float(data.get("time_norm", 0.0))
-            + wi * float(data.get("incline_norm", 0.0))
         )
 
 
@@ -222,26 +185,20 @@ def _path_metrics_for_weight(
 ) -> dict[str, float]:
     length_m = 0.0
     travel_time_s = 0.0
-    incline_extra_s = 0.0
     if len(path) < 2:
         return {
             "length_m": length_m,
             "travel_time_s": travel_time_s,
-            "incline_extra_s": incline_extra_s,
         }
     for u, v in zip(path[:-1], path[1:]):
         data = _min_edge_data_by_weight(G, u, v, weight_attr)
         if data is None:
             continue
         length_m += float(data.get("length", 0.0))
-        tt = float(data.get("travel_time_s", 0.0))
-        tt_grade = float(data.get("travel_time_grade_s", tt))
-        travel_time_s += tt
-        incline_extra_s += max(tt_grade - tt, 0.0)
+        travel_time_s += float(data.get("travel_time_s", 0.0))
     return {
         "length_m": length_m,
         "travel_time_s": travel_time_s,
-        "incline_extra_s": incline_extra_s,
     }
 
 
@@ -306,7 +263,6 @@ def precompute(refresh: bool = False) -> Path:
     experiments = [
         Experiment("distance", "length", None),
         Experiment("time", "travel_time_s", time_heuristic),
-        Experiment("time+grade", "travel_time_grade_s", time_heuristic),
     ]
 
     results: dict[str, Any] = {}
@@ -335,12 +291,12 @@ def precompute(refresh: bool = False) -> Path:
             "astar": a_res,
         }
 
-    _log("Running blended normalized-cost Dijkstra grid...")
-    blended_weights = simplex_weights(WEIGHT_LEVELS)
+    _log("Running blended normalized-cost Dijkstra sweep...")
+    blended_weights = distance_time_sweep(WEIGHT_LEVELS)
     blended_paths: list[list[Any]] = []
     blended_stats: list[dict[str, Any]] = []
-    for wd, wt, wi in blended_weights:
-        _set_composite_costs(G, wd, wt, wi)
+    for wd, wt in blended_weights:
+        _set_composite_costs(G, wd, wt)
         blend_res = dijkstra(
             G,
             orig_node,
@@ -355,11 +311,9 @@ def precompute(refresh: bool = False) -> Path:
             {
                 "w_distance": round(wd, 3),
                 "w_time": round(wt, 3),
-                "w_incline": round(wi, 3),
                 "composite_cost": float(blend_res.cost),
                 "length_m": round(path_metrics["length_m"], 3),
                 "travel_time_s": round(path_metrics["travel_time_s"], 3),
-                "incline_extra_s": round(path_metrics["incline_extra_s"], 3),
                 "path_nodes": len(blend_res.path),
             }
         )

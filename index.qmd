@@ -25,13 +25,12 @@ This paper will explore the theoretical underpinnings of the Dijkstra and A* alg
 
 ## Data and graph model
 
-We download a subset of the Washington DC street network from OpenStreetMap [@openstreetmap]. OSM data contains a trove of information about the road network, including lengths, speeds, inclines, and other features, providing a wealth of differnt options for cost models.
+We download a subset of the Washington DC street network from OpenStreetMap [@openstreetmap]. OSM data contains a trove of information about the road network, including lengths, speeds, and other features, providing a wealth of differnt options for cost models.
 
-This paper compares three edge-cost models:
+This paper compares two edge-cost models:
 
 - `length` (meters, baseline shortest distance)
 - `travel_time_s` (seconds, speed-based travel time using OSM `maxspeed` plus highway-class defaults)
-- `travel_time_grade_s` (seconds, absolute-incline-penalized travel time using OSM `incline` tags where present)
 
 ```{python}
 #| label: load-precomputed
@@ -84,11 +83,6 @@ pd.DataFrame(
             "Metric": "Edges with maxspeed tag (%)",
             "Value": round(100 * coverage["edge_has_maxspeed"] / max(coverage["edge_total"], 1), 2),
         },
-        {"Metric": "Edges with incline tag", "Value": coverage["edge_has_incline"]},
-        {
-            "Metric": "Edges with incline tag (%)",
-            "Value": round(100 * coverage["edge_has_incline"] / max(coverage["edge_total"], 1), 2),
-        },
     ]
 )
 ```
@@ -114,10 +108,9 @@ From a different perspective, Dijkstra's algorithm is a special case of A* where
 - For the `length` model, we use Euclidean distance in projected meters.
 - For the time-based models, we use a lower-bound travel-time heuristic: straight-line distance divided by the maximum edge speed in the graph.
 
-### Additional cost models
+### Additional cost model
 
 - **Speed model**: `travel_time_s = length_m / speed_mps` using `maxspeed` when available and fallback defaults by `highway` class.
-- **Grade-penalized model**: `travel_time_grade_s = travel_time_s * (1 + gamma * abs(incline_pct))`, so both steep uphill and steep downhill segments receive extra penalty.
 
 ## Results
 
@@ -158,7 +151,7 @@ for model_name, model_res in results.items():
 pd.DataFrame(rows)
 ```
 
-For `distance`, cost is **meters**; for `time` and `time+grade`, cost is **seconds**. **Nodes settled** counts the nodes for which the shortest path from my house has been found; **PQ pops** counts heap pop operations (including stale entries). As expected, A* tends to settle fewer nodes than Dijkstra with an admissible, informative heuristic.
+For `distance`, cost is **meters**; for `time`, cost is **seconds**. **Nodes settled** counts the nodes for which the shortest path from my house has been found; **PQ pops** counts heap pop operations (including stale entries). As expected, A* tends to settle fewer nodes than Dijkstra with an admissible, informative heuristic.
 
 ```{python}
 #| label: anim-helpers
@@ -195,14 +188,6 @@ animation_for("dijkstra", "distance", "Dijkstra (distance) on DC OSM drive netwo
 animation_for("dijkstra", "time", "Dijkstra (travel_time_s) on DC OSM drive network")
 ```
 
-### Interactive map: Dijkstra (time + absolute incline penalty)
-
-```{python}
-#| label: fig-dijkstra-grade
-#| fig-cap: "Dijkstra exploration with absolute-incline-penalized travel time."
-animation_for("dijkstra", "time+grade", "Dijkstra (travel_time_grade_s) on DC OSM drive network")
-```
-
 ### Interactive map: A* (distance baseline)
 
 ```{python}
@@ -222,27 +207,20 @@ animation_for("astar", "time", "A* (travel_time_s) on DC OSM drive network")
 
 Here, we see that A* where speed is taken into account explores a wider range of nodes than A* based solely on distance. The settled nodes travel down major thoroughfares like 14th Street, Connecticut Avenue, and Georgia Avenue that have a lower cost $g(n)$ due to their higher speed limits..
 
-### Interactive map: A* (time + absolute incline penalty)
-
-```{python}
-#| label: fig-astar-grade
-#| fig-cap: "A* exploration with absolute-incline-penalized travel time."
-animation_for("astar", "time+grade", "A* (travel_time_grade_s) on DC OSM drive network")
-```
-
 ## Interactive cost mix
 
-This static explorer precomputes shortest paths under a grid of weight combinations.
-Each edge metric (`length`, `travel_time_s`, and absolute `incline`) is normalized
-to `[0, 1]`, then combined as:
+This static explorer precomputes shortest paths under a sweep of weight
+combinations between distance and travel time. Each edge metric (`length`
+and `travel_time_s`) is normalized to `[0, 1]`, then combined as:
 
-`composite_cost = w_distance * length_norm + w_time * time_norm + w_incline * incline_norm`.
+`composite_cost = w_distance * length_norm + w_time * time_norm`,
 
-Use the dropdown to emphasize the metric you want to weight most.
+with `w_time = 1 - w_distance`. Use the slider to shift between
+distance- and travel-time-priority routing.
 
 ```{python}
 #| label: fig-interactive-cost-mix
-#| fig-cap: "Dijkstra shortest path for normalized blended costs. Use the dropdown to shift priorities across distance, time, and incline."
+#| fig-cap: "Dijkstra shortest path for normalized blended costs. Use the slider to shift between distance and travel-time priority."
 if blended is None:
     import plotly.graph_objects as go
 
@@ -272,13 +250,13 @@ else:
 
 ```{python}
 #| label: tbl-interactive-cost-mix
-#| tbl-cap: "Path-level metrics across blended cost combinations"
+#| tbl-cap: "Path-level metrics across distance/time blend"
 pd.DataFrame([] if blended is None else blended["stats"])
 ```
 
 ## Extenstion: Contraction Hierarchies
 
-Contraction hierarchies preprocess the graph so that bidirectional search on a much larger search space still yields exact shortest paths on road networks [@geisberger2008contraction]. Nodes can be merged together to create a smaller graph that is still guaranteed to contain the shortest path to the goal node while requiring fewer nodes to be relaxed. For instance, if I want to calculate the path between Georgetown University and Johns Hopkins University, it would be imprudent to explore all the side streets between Washington, DC and Baltimore. Instead, I could precalculate a super node representing the cost of all of I-95 between DC and Baltimore. With a heuristic estimating the remaining distance to the goal node, once I reach this node it will shoot me far downstream to Baltimore. 
+Contraction hierarchies preprocess the graph so that bidirectional search on a much larger search space still yields exact shortest paths on road networks [@geisberger2008contraction]. Nodes can be merged together to create a smaller graph that is still guaranteed to contain the shortest path to the goal node while requiring fewer nodes to be relaxed. For instance, if I want to calculate the path between Georgetown University and Johns Hopkins University, it would be imprudent to explore all the side streets between Washington, DC and Baltimore. Instead, I could precalculate a super node representing the cost of all of I-95 between DC and Baltimore. Althought this is technically adding a node to the graph, it also obviates the need to explore all the nodes on I-95 between DC and Baltimore since we can precompute that distance. As a result, we no longer explore all the offramps since we
 
 Mapping services use contraction hierarchies to make route computation over large distances near-instantaneous. Since roads have a hierarchical structures, it is possible to simplify the graph
 

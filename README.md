@@ -6,7 +6,6 @@ Cost models included:
 
 - `length` (meters)
 - `travel_time_s` (speed-based seconds from OSM `maxspeed` + highway defaults)
-- `travel_time_grade_s` (uphill-penalized travel time using OSM `incline` where present)
 
 ## Setup
 
