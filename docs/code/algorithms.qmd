@@ -1,0 +1,9 @@
+---
+title: "Pathfinding algorithms (algorithms.py)"
+---
+
+This page mirrors the source of [`algorithms.py`](../algorithms.py), which contains the Dijkstra and A* implementations used throughout the manuscript.
+
+```{.python filename="algorithms.py"}
+{{< include ../algorithms.py >}}
+```

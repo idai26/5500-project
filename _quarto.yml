@@ -5,6 +5,16 @@ project:
 manuscript:
   resources:
     - references.bib
+    - precompute.py
+    - algorithms.py
+    - routing_viz.py
+  notebooks:
+    - notebook: code/precompute.qmd
+      title: Precompute pipeline
+    - notebook: code/algorithms.qmd
+      title: Pathfinding algorithms
+    - notebook: code/routing_viz.qmd
+      title: Visualization helpers
   code-links:
     - text: Precompute pipeline
       icon: file-code

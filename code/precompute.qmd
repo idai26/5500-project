@@ -1,0 +1,9 @@
+---
+title: "Precompute pipeline (precompute.py)"
+---
+
+This page mirrors the source of [`precompute.py`](../precompute.py), the script that downloads the OpenStreetMap network, builds cost models, and caches the routing results consumed by the article.
+
+```{.python filename="precompute.py"}
+{{< include ../precompute.py >}}
+```

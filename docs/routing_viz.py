@@ -261,7 +261,7 @@ def comparison_table_row(
 ) -> dict[str, Any]:
     return {
         "Algorithm": label,
-        "Path length (m)": round(cost_m, 2),
+        "Cost": round(cost_m, 2),
         "Nodes settled": nodes_settled,
         "PQ pops": pq_pops,
         "Time (ms)": round(elapsed_ms, 3),

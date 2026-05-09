@@ -11,7 +11,7 @@ keywords:
   - A*
   - OpenStreetMap
   - transportation networks
-abstract: "This paper examines how mapping services use different algorithms to determine optimal routes and estimate travel time. In particular, I compare Dijkstra’s Algorithm with the A-star algorithm. Dijkstra's algorithm is a search algorithm that iteratively explores the graph until reaching the goal node, while A-star uses a heuristic to guide the search to optimize the search time and memory usage. I also consider how the choice of costs can impact the results as drivers and pedestrians weight the benefits of optimizing for speed, distance, or incline. I use my commute from home to school as a case study to visualize the results of these algorithms. Finally, I will consider the extension of contraction hierarchies to the shortest-path problem, which major mapping services use to speed up route computation."
+abstract: "This paper examines how mapping services use different algorithms to determine optimal routes and estimate travel time. In particular, I compare Dijkstra’s Algorithm with the A-star algorithm. Dijkstra's algorithm is a search algorithm that iteratively explores the graph until reaching the goal node, while A-star uses a heuristic to guide the search to optimize the search time and memory usage. Both are best-first search algorithms, and Dijkstra's algorithm can be considerd a special case of A* where the heuristic estimate of remaining cost to the goal node is 0 for all nodes. I also consider how the choice of costs can impact the results as drivers and pedestrians weight the benefits of optimizing for speed, distance, or incline. I use my commute from home to school as a case study to visualize the results of these algorithms. Finally, I consider the extension of contraction hierarchies to the shortest-path problem, which major mapping services use to speed up route computation."
 ---
 
 ## Introduction
@@ -106,7 +106,7 @@ A* is guaranteed to find the shortest path to the goal node since at any point i
 From a different perspective, Dijkstra's algorithm is a special case of A* where the heuristic is 0 for all nodes. Since there is no estimate of the remaining distance to the goal node, the algorithm continues to order the priority queue by edge weight. Due to the algorithms' similarity, I was able to implement both algorithms as variants of a "best-first" search algorithm using a heuristic function, with Dijkstra's algorithm being a special case where the heuristic is hard-coded as a constant 0 for all nodes.
 
 - For the `length` model, we use Euclidean distance in projected meters.
-- For the time-based models, we use a lower-bound travel-time heuristic: straight-line distance divided by the maximum edge speed in the graph.
+- For the time-based models, we use a lower-bound travel-time heuristic: straight-line distance divided by the maximum edge speed in the graph. This is an optimistic estimate of the remaining travel time to the goal node: you're driving at highway speeds on the streets of Georgetown!
 
 ### Additional cost model
 
@@ -151,8 +151,9 @@ for model_name, model_res in results.items():
 pd.DataFrame(rows)
 ```
 
-For `distance`, cost is **meters**; for `time`, cost is **seconds**. **Nodes settled** counts the nodes for which the shortest path from my house has been found; **PQ pops** counts heap pop operations (including stale entries). As expected, A* tends to settle fewer nodes than Dijkstra with an admissible, informative heuristic.
-
+ Nodes settled counts the nodes for which the shortest path from my house has been found. PQ pops counts heap pop operations, or the number of times the algorithm considers a node in the priority queue. Time is the computational time in milliseconds. As expected, A* settles far fewer nodes than Dijkstra's algorithm due to its goal-directed search. This is true using a distance-based and speed-based cost model. A pure distance-based cost model yields much greater computational improvements for a tradeoff between A* and Dijkstra's algorithm (4.2 ms for A* vs. 22.0 ms for Dijkstra). The speed-based cost model narrows this gap (19.4 ms for A* vs. 21.7 ms for Dijkstra), as A* is taken down arterial roads that have a lower speed-based cost to their traversal.
+ 
+ It is easiest to understand the differences in search patterns using the actual map of Washington, DC as shown in the interactive maps below.
 ```{python}
 #| label: anim-helpers
 MAX_FRAMES = 30
@@ -258,20 +259,12 @@ pd.DataFrame([] if blended is None else blended["stats"])
 
 Contraction hierarchies preprocess the graph so that bidirectional search on a much larger search space still yields exact shortest paths on road networks [@geisberger2008contraction]. Nodes can be merged together to create a smaller graph that is still guaranteed to contain the shortest path to the goal node while requiring fewer nodes to be relaxed. For instance, if I want to calculate the path between Georgetown University and Johns Hopkins University, it would be imprudent to explore all the side streets between Washington, DC and Baltimore. Instead, I could precalculate a super node representing the cost of all of I-95 between DC and Baltimore. Althought this is technically adding a node to the graph, it also obviates the need to explore all the nodes on I-95 between DC and Baltimore since we can precompute that distance. As a result, we no longer explore all the offramps since we
 
-Mapping services use contraction hierarchies to make route computation over large distances near-instantaneous. Since roads have a hierarchical structures, it is possible to simplify the graph
+Mapping services use contraction hierarchies to make route computation over large distances near-instantaneous. It is possible to precompute the shortest path between many pairs of nodes in a graph, and the hierarchical structure of roads (i.e. local roads feed into arterial roads feed into highways) allows for efficient route computation over large distances. Mapping services use contraction hierarchies with a modified version of Dijkstra's algorithm to find the shortest path between two nodes. They tend to use bidirectional search (i.e. starting from both the source and goal node and meeting in the middle) and only explore "up" in the hierarchy (i.e. not take a diversion off a side street when already on a major road). With these and other properietary optimazations, mapping services can deliver optimal routes in millseconds for thousands of customers at a time.
 
 ## Conclusion
+This project considers the development of pathfinding algorithms and their application to real-world examples. I present Dijkstra's Algorithm and A* as two extensions of a best-first search algorithm, where Dijkstra's algorithm is a special case of A* where the heuristic estimate of remaining cost to the goal node is 0 for all nodes. Additionally, I consider the implications of different cost models on the results of the algorithms. In A*, it is evident that a speed-based cost model results in arterial roads getting more priority in explanation since there is a lower speed-based cost to their traversal. In a purely distance-based cost model, A* is about 5x faster than Dijkstra's algorithm, but this advantage slims when using a speed-based cost model.
 
-## Appendix: environment
+In the case of my commute from home to school, both cost models produce near-identical paths. Since the distance as the crow flies is only ~2.5 miles, there are no highways in the way, and DC has a relatively regular grid street layout, it makes sense that there is not much deviation between the two cost models. However, if we were able to take grade into account, it is possible that there would be a very different route that avoided steep hills. Unfortunately, the OSM data did not include data on the incline of the roads, so that possibility remains unexplored in this project.
 
-Install dependencies, precompute results, and render:
+Finally, I explore the extension of contraction hierarchies to the shortest-path problem and give a brief overview of how mapping services use them to speed up route computation, reverting to Dijkstra's algorithm but precomputing many well-traveled routes in advance to allow for near-instantaneous route computation for endpoint users.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python precompute.py        # one-time; pulls OSM and runs all algorithms
-quarto render               # manuscript site → docs/index.html
-```
-
-The first `precompute.py` run needs **network access** for OSM download. After that, both precompute and render work fully offline using the cached `data/dc_route_graph.graphml` and `data/routing_results.pkl`.

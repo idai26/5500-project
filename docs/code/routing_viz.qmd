@@ -1,0 +1,9 @@
+---
+title: "Visualization helpers (routing_viz.py)"
+---
+
+This page mirrors the source of [`routing_viz.py`](../routing_viz.py), the helpers that render the comparison tables, blended-cost figures, and search animations embedded in the article.
+
+```{.python filename="routing_viz.py"}
+{{< include ../routing_viz.py >}}
+```
